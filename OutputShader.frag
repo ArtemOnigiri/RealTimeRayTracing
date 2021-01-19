@@ -4,6 +4,7 @@ uniform vec3 u_pos;
 uniform float u_time;
 
 const float MAX_DIST = 99999.0;
+const int MAX_REF = 8;
 vec3 light = normalize(vec3(-0.5, 0.75, -1.0));
 
 mat2 rot(float a) {
@@ -42,11 +43,12 @@ vec3 getSky(vec3 rd) {
 	vec3 col = vec3(0.3, 0.6, 1.0);
 	vec3 sun = vec3(0.95, 0.9, 1.0);
 	sun *= max(0.0, pow(dot(rd, light), 32.0));
+	col *= max(0.0, dot(light, vec3(0.0, 0.0, -1.0)));
 	return clamp(sun + col, 0.0, 1.0);
 }
 
-vec3 castRay(inout vec3 ro, inout vec3 rd) {
-	vec3 col;
+vec4 castRay(inout vec3 ro, inout vec3 rd) {
+	vec4 col;
 	vec2 minIt = vec2(MAX_DIST);
 	vec2 it;
 	vec3 n;
@@ -56,7 +58,15 @@ vec3 castRay(inout vec3 ro, inout vec3 rd) {
 		minIt = it;
 		vec3 itPos = ro + rd * it.x;
 		n = itPos - spherePos;
-		col = vec3(1.0, 0.2, 0.1);
+		col = vec4(1.0, 0.2, 0.1, 1.0);
+	}
+	spherePos = vec3(10.0, 3.0, -0.25);
+	it = sphIntersect(ro - spherePos, rd, 1.5);
+	if(it.x > 0.0 && it.x < minIt.x) {
+		minIt = it;
+		vec3 itPos = ro + rd * it.x;
+		n = normalize(itPos - spherePos);
+		col = vec4(1.0);
 	}
 	vec3 boxN;
 	vec3 boxPos = vec3(0.0, 2.0, 0.0);
@@ -64,29 +74,38 @@ vec3 castRay(inout vec3 ro, inout vec3 rd) {
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = boxN;
-		col = vec3(0.4, 0.6, 0.8);
+		col = vec4(0.4, 0.6, 0.8, 0.2);
 	}
 	vec3 planeNormal = vec3(0.0, 0.0, -1.0);
-	it = plaIntersect(ro, rd, vec4(planeNormal, 1.0));
+	it = vec2(plaIntersect(ro, rd, vec4(planeNormal, 1.0)));
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = planeNormal;
-		col = vec3(0.5);
+		col = vec4(0.5, 0.5, 0.5, 0.0);
 	}
-	if(minIt.x == MAX_DIST) return vec3(-1.0);
+	if(minIt.x == MAX_DIST) return vec4(-1.0);
 	float diffuse = max(0.0, dot(light, n));
 	float specular = max(0.0, pow(dot(reflect(rd, n), light), 32.0));
-	col *= mix(diffuse, specular, 0.5);
+	vec3 shade = mix(diffuse, specular, 0.5);
+	col.rgb *= mix(shade, vec3(1.0), col.a);
 	ro += rd * (minIt.x - 0.001);
-	// rd = reflect(rd, n);
+	rd = reflect(rd, n);
 	return col;
 }
 
 vec3 traceRay(vec3 ro, vec3 rd) {
-	vec3 col = castRay(ro, rd);
-	if(col.x == -1.0) return getSky(rd);
-	vec3 lightDir = light;
-	if(castRay(ro, lightDir).x != -1.0) col *= 0.0;
+	vec3 col = vec3(dot(light, vec3(0.0, 0.0, -1.0)));
+	float reflectivity = 1.0;
+	for(int i = 0; i < MAX_REF; i++)
+	{
+		vec4 refCol = castRay(ro, rd);
+		if(refCol.x == -1.0) return mix(col, col * getSky(rd), reflectivity);
+		vec3 lightDir = light;
+		vec3 shadowRo = ro;
+		if(castRay(shadowRo, lightDir).x != -1.0) refCol.rgb *= vec3(refCol.a);
+		col *= mix(vec3(1.0), refCol.rgb, reflectivity);
+		reflectivity *= refCol.a;
+	}
 	return col;
 }
 
@@ -96,7 +115,7 @@ void main() {
 	vec3 rayDirection = normalize(vec3(1.0, uv));
 	rayDirection.zx *= rot(-u_mouse.y);
 	rayDirection.xy *= rot(u_mouse.x);
-	light = normalize(vec3(cos(u_time * 0.2), 0.75, sin(u_time * 0.2) - 0.9));
+	light = normalize(vec3(sin(u_time * 0.2), 0.75, cos(u_time * 0.2) - 0.95));
 	vec3 col = traceRay(rayOrigin, rayDirection);
 	col.r = pow(col.r, 0.45);
 	col.g = pow(col.g, 0.45);
