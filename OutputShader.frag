@@ -61,7 +61,7 @@ vec3 castRay(vec3 ro, vec3 rd) {
 		n = planeNormal;
 	}
 	if(minIt.x == MAX_DIST) return vec3(0.0);
-	vec3 light = normalize(vec3(cos(u_time), 0.75, sin(u_time)));
+	vec3 light = normalize(vec3(-0.5, 0.75, -1.0));
 	float diffuse = max(0.0, dot(light, n)) * 0.5 + 0.1;
 	float specular = max(0.0, pow(dot(reflect(rd, n), light), 32.0));
 	vec3 col = diffuse + specular;
