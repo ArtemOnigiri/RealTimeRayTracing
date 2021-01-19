@@ -1,7 +1,14 @@
 uniform vec2 u_resolution;
+uniform vec2 u_mouse;
 uniform float u_time;
 
 const float MAX_DIST = 99999.0;
+
+mat2 rot(float a) {
+	float s = sin(a);
+	float c = cos(a);
+	return mat2(c, -s, s, c);
+}
 
 vec2 sphIntersect(in vec3 ro, in vec3 rd, float ra) {
 	float b = dot(ro, rd);
@@ -65,6 +72,8 @@ void main() {
 	vec2 uv = (gl_TexCoord[0].xy - 0.5) * u_resolution / u_resolution.y;
 	vec3 rayOrigin = vec3(-5.0, 0.0, 0.0);
 	vec3 rayDirection = normalize(vec3(1.0, uv));
+	rayDirection.zx *= rot(-u_mouse.y);
+	rayDirection.xy *= rot(u_mouse.x);
 	vec3 col = castRay(rayOrigin, rayDirection);
 	gl_FragColor = vec4(col, 1.0);
 }
