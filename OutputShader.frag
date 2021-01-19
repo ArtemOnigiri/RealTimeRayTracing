@@ -1,4 +1,5 @@
 uniform vec2 u_resolution;
+uniform float u_time;
 
 vec2 sphIntersect(in vec3 ro, in vec3 rd, float ra) {
 	float b = dot(ro, rd);
@@ -12,7 +13,13 @@ vec2 sphIntersect(in vec3 ro, in vec3 rd, float ra) {
 vec3 castRay(vec3 ro, vec3 rd) {
 	vec2 it = sphIntersect(ro, rd, 1.0);
 	if(it.x < 0.0) return vec3(0.0);
-	return vec3(1.0);
+	vec3 itPos = ro + rd * it.x;
+	vec3 n = itPos;
+	vec3 light = normalize(vec3(cos(u_time), 0.75, sin(u_time)));
+	float diffuse = max(0.0, dot(light, n)) * 0.5;
+	float specular = max(0.0, pow(dot(reflect(rd, n), light), 32.0));
+	vec3 col = diffuse + specular;
+	return col;
 }
 
 void main() {

@@ -26,6 +26,7 @@ int main()
 				window.close();
 			}
 		}
+		shader.setUniform("u_time", clock.getElapsedTime().asSeconds());
 		window.draw(emptySprite, &shader);
 		window.display();
 	}
