@@ -38,6 +38,7 @@ float plaIntersect(in vec3 ro, in vec3 rd, in vec4 p) {
 }
 
 vec3 castRay(vec3 ro, vec3 rd) {
+	vec3 col;
 	vec2 minIt = vec2(MAX_DIST);
 	vec2 it;
 	vec3 n;
@@ -47,6 +48,7 @@ vec3 castRay(vec3 ro, vec3 rd) {
 		minIt = it;
 		vec3 itPos = ro + rd * it.x;
 		n = itPos - spherePos;
+		col = vec3(1.0, 0.2, 0.1);
 	}
 	vec3 boxN;
 	vec3 boxPos = vec3(0.0, 2.0, 0.0);
@@ -54,18 +56,20 @@ vec3 castRay(vec3 ro, vec3 rd) {
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = boxN;
+		col = vec3(0.4, 0.6, 0.8);
 	}
 	vec3 planeNormal = vec3(0.0, 0.0, -1.0);
 	it = plaIntersect(ro, rd, vec4(planeNormal, 1.0));
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = planeNormal;
+		col = vec3(0.5);
 	}
 	if(minIt.x == MAX_DIST) return vec3(0.0);
 	vec3 light = normalize(vec3(-0.5, 0.75, -1.0));
-	float diffuse = max(0.0, dot(light, n)) * 0.5 + 0.1;
+	float diffuse = max(0.0, dot(light, n));
 	float specular = max(0.0, pow(dot(reflect(rd, n), light), 32.0));
-	vec3 col = diffuse + specular;
+	col *= mix(diffuse, specular, 0.5);
 	return col;
 }
 
@@ -76,5 +80,8 @@ void main() {
 	rayDirection.zx *= rot(-u_mouse.y);
 	rayDirection.xy *= rot(u_mouse.x);
 	vec3 col = castRay(rayOrigin, rayDirection);
+	col.r = pow(col.r, 0.45);
+	col.g = pow(col.g, 0.45);
+	col.b = pow(col.b, 0.45);
 	gl_FragColor = vec4(col, 1.0);
 }
