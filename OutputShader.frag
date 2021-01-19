@@ -1,5 +1,6 @@
 uniform vec2 u_resolution;
 uniform vec2 u_mouse;
+uniform vec3 u_pos;
 uniform float u_time;
 
 const float MAX_DIST = 99999.0;
@@ -70,7 +71,7 @@ vec3 castRay(vec3 ro, vec3 rd) {
 
 void main() {
 	vec2 uv = (gl_TexCoord[0].xy - 0.5) * u_resolution / u_resolution.y;
-	vec3 rayOrigin = vec3(-5.0, 0.0, 0.0);
+	vec3 rayOrigin = u_pos;
 	vec3 rayDirection = normalize(vec3(1.0, uv));
 	rayDirection.zx *= rot(-u_mouse.y);
 	rayDirection.xy *= rot(u_mouse.x);
