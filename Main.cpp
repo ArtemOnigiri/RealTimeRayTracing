@@ -7,6 +7,7 @@ int main()
 	int mouseX = w / 2;
 	int mouseY = h / 2;
 	float mouseSensitivity = 3.0f;
+	float speed = 0.1f;
 	bool mouseHidden = true;
 	bool wasdUD[6] = { false, false, false, false, false, false };
 	sf::Vector3f pos = sf::Vector3f(-5.0f, 0.0f, 0.0f);
@@ -72,21 +73,28 @@ int main()
 		}
 		if (mouseHidden)
 		{
+			float mx = ((float)mouseX / w - 0.5f) * mouseSensitivity;
+			float my = ((float)mouseY / h - 0.5f) * mouseSensitivity;
 			sf::Vector3f dir = sf::Vector3f(0.0f, 0.0f, 0.0f);
+			sf::Vector3f dirTemp;
 			if (wasdUD[0]) dir = sf::Vector3f(1.0f, 0.0f, 0.0f);
 			else if (wasdUD[2]) dir = sf::Vector3f(-1.0f, 0.0f, 0.0f);
 			if (wasdUD[1]) dir += sf::Vector3f(0.0f, -1.0f, 0.0f);
 			else if (wasdUD[3]) dir += sf::Vector3f(0.0f, 1.0f, 0.0f);
-			pos += dir * 0.1f;
-			if (wasdUD[4]) pos.z -= 0.1;
-			else if (wasdUD[5]) pos.z += 0.1;
+			dirTemp.z = dir.z * cos(-my) - dir.x * sin(-my);
+			dirTemp.x = dir.z * sin(-my) + dir.x * cos(-my);
+			dirTemp.y = dir.y;
+			dir.x = dirTemp.x * cos(mx) - dirTemp.y * sin(mx);
+			dir.y = dirTemp.x * sin(mx) + dirTemp.y * cos(mx);
+			dir.z = dirTemp.z;
+			pos += dir * speed;
+			if (wasdUD[4]) pos.z -= speed;
+			else if (wasdUD[5]) pos.z += speed;
 			shader.setUniform("u_pos", pos);
-			float mx = ((float)mouseX / w - 0.5f) * mouseSensitivity;
-			float my = ((float)mouseY / h - 0.5f) * mouseSensitivity;
 			shader.setUniform("u_mouse", sf::Vector2f(mx, my));
 			shader.setUniform("u_time", clock.getElapsedTime().asSeconds());
-			window.draw(emptySprite, &shader);
 		}
+		window.draw(emptySprite, &shader);
 		window.display();
 	}
 	return 0;
