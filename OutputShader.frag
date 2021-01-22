@@ -100,15 +100,19 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	vec2 minIt = vec2(MAX_DIST);
 	vec2 it;
 	vec3 n;
-	mat2x4 spheres[4];
-	spheres[0][0] = vec4(0.0, -1.0, 0.0, 1.0);
-	spheres[0][1] = vec4(1.0, 0.2, 0.1, 1.0);
-	spheres[1][0] = vec4(10.0, 3.0, -0.25, 2.0);
-	spheres[1][1] = vec4(1.0, 1.0, 1.0, 0.01);
-	spheres[2][0] = vec4(5.0, 7.0, -0.01, 1.0);
-	spheres[2][1] = vec4(1.0, 1.0, 1.0, -1.0);
-	spheres[3][0] = vec4(1.0, -7.0, -0.01, 0.5);
-	spheres[3][1] = vec4(1.0, 0.2, 0.9, -2.0);
+	mat2x4 spheres[6];
+	spheres[0][0] = vec4(-1.0, 0.0, -0.01, 1.0);
+	spheres[1][0] = vec4(0.0, 3.0, -0.01, 1.0);
+	spheres[2][0] = vec4(1.0, -2.0, -0.01, 1.0);
+	spheres[3][0] = vec4(3.5, -1.0, 0.5, 0.5);
+	spheres[4][0] = vec4(-3.5, -1.0, 0.0, 0.5);
+	spheres[5][0] = vec4(-5.5, -0.5, -0.01, 1.0);
+	spheres[0][1] = vec4(1.0, 1.0, 1.0, -0.5);
+	spheres[1][1] = vec4(1.0, 1.0, 1.0, 0.5);
+	spheres[2][1] = vec4(1.0, 0.0, 0.5, 1.0);
+	spheres[3][1] = vec4(1.0, 1.0, 1.0, -2.0);
+	spheres[4][1] = vec4(0.5, 1.0, 0.5, -2.0);
+	spheres[5][1] = vec4(0.5, 0.5, 0.5, 0.0);
 	for(int i = 0; i < spheres.length(); i++) {
 		it = sphIntersect(ro - spheres[i][0].xyz, rd, spheres[i][0].w);
 		if(it.x > 0.0 && it.x < minIt.x) {
@@ -119,19 +123,19 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 		}
 	}
 	vec3 boxN;
-	vec3 boxPos = vec3(0.0, 2.0, 0.0);
+	vec3 boxPos = vec3(3.0, 1.0, -0.001);
 	it = boxIntersection(ro - boxPos, rd, vec3(1.0), boxN);
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = boxN;
-		col = vec4(0.4, 0.6, 0.8, 0.2);
+		col = vec4(0.9, 0.2, 0.2, -0.5);
 	}
 	vec3 planeNormal = vec3(0.0, 0.0, -1.0);
 	it = vec2(plaIntersect(ro, rd, vec4(planeNormal, 1.0)));
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = planeNormal;
-		col = vec4(0.9, 0.6, 0.4, 0.01);
+		col = vec4(0.5, 0.25, 0.1, 0.01);
 	}
 	if(minIt.x == MAX_DIST) return vec4(getSky(rd), -2.0);
 	if(col.a == -2.0) return col;
