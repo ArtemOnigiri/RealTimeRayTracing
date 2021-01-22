@@ -139,7 +139,13 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	}
 	if(minIt.x == MAX_DIST) return vec4(getSky(rd), -2.0);
 	if(col.a == -2.0) return col;
+	vec3 reflected = reflect(rd, n);
 	if(col.a < 0.0) {
+		float fresnel = 1.0 - abs(dot(-rd, n));
+		if(random() - 0.1 < fresnel * fresnel) {
+			rd = reflected;
+			return col;
+		}
 		ro += rd * (minIt.y + 0.001);
 		rd = refract(rd, n, 1.0 / (1.0 - col.a));
 		return col;
@@ -147,7 +153,6 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	vec3 itPos = ro + rd * it.x;
 	vec3 r = randomOnSphere();
 	vec3 diffuse = normalize(r * dot(r, n));
-	vec3 reflected = reflect(rd, n);
 	ro += rd * (minIt.x - 0.001);
 	rd = mix(diffuse, reflected, col.a);
 	return col;
