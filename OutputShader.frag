@@ -1,3 +1,5 @@
+#version 130
+
 uniform vec2 u_resolution;
 uniform vec2 u_mouse;
 uniform vec3 u_pos;
@@ -5,17 +7,44 @@ uniform float u_time;
 uniform sampler2D u_sample;
 uniform float u_sample_part;
 uniform vec2 u_seed1;
+uniform vec2 u_seed2;
 
 const float MAX_DIST = 99999.0;
 const int MAX_REF = 8;
 vec3 light = normalize(vec3(-0.5, 0.75, -1.0));
 
-float random (vec2 st) {
-    return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+uvec4 R_STATE;
+
+uint TausStep(uint z, int S1, int S2, int S3, uint M)
+{
+	uint b = (((z << S1) ^ z) >> S2);
+	return (((z & M) << S3) ^ b);	
 }
 
-vec3 randomOnSphere(vec2 st) {
-	vec3 rand = vec3(random(st), random(st + vec2(1.0)), random(st + vec2(10.0)));
+uint LCGStep(uint z, uint A, uint C)
+{
+	return (A * z + C);	
+}
+
+vec2 hash22(vec2 p)
+{
+	p += u_seed1.x;
+	vec3 p3 = fract(vec3(p.xyx) * vec3(.1031, .1030, .0973));
+	p3 += dot(p3, p3.yzx+33.33);
+	return fract((p3.xx+p3.yz)*p3.zy);
+}
+
+float random()
+{
+	R_STATE.x = TausStep(R_STATE.x, 13, 19, 12, uint(4294967294));
+	R_STATE.y = TausStep(R_STATE.y, 2, 25, 4, uint(4294967288));
+	R_STATE.z = TausStep(R_STATE.z, 3, 11, 17, uint(4294967280));
+	R_STATE.w = LCGStep(R_STATE.w, uint(1664525), uint(1013904223));
+	return 2.3283064365387e-10 * float((R_STATE.x ^ R_STATE.y ^ R_STATE.z ^ R_STATE.w));
+}
+
+vec3 randomOnSphere() {
+	vec3 rand = vec3(random(), random(), random());
 	float theta = rand.x * 2.0 * 3.14159265;
 	float v = rand.y;
 	float phi = acos(2.0 * v - 1.0);
@@ -102,7 +131,7 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = planeNormal;
-		col = vec4(0.9, 0.9, 0.9, 0.01);
+		col = vec4(0.9, 0.6, 0.4, 0.01);
 	}
 	if(minIt.x == MAX_DIST) return vec4(getSky(rd), -2.0);
 	if(col.a == -2.0) return col;
@@ -112,7 +141,7 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 		return col;
 	}
 	vec3 itPos = ro + rd * it.x;
-	vec3 r = randomOnSphere(itPos.xy + itPos.zz + u_seed1);
+	vec3 r = randomOnSphere();
 	vec3 diffuse = normalize(r * dot(r, n));
 	vec3 reflected = reflect(rd, n);
 	ro += rd * (minIt.x - 0.001);
@@ -133,6 +162,11 @@ vec3 traceRay(vec3 ro, vec3 rd) {
 
 void main() {
 	vec2 uv = (gl_TexCoord[0].xy - 0.5) * u_resolution / u_resolution.y;
+	vec2 uvRes = hash22(uv + 1.0) * u_resolution + u_resolution;
+	R_STATE.x = uint(u_seed1.x + uvRes.x);
+	R_STATE.y = uint(u_seed1.y + uvRes.x);
+	R_STATE.z = uint(u_seed2.x + uvRes.y);
+	R_STATE.w = uint(u_seed2.y + uvRes.y);
 	vec3 rayOrigin = u_pos;
 	vec3 rayDirection = normalize(vec3(1.0, uv));
 	rayDirection.zx *= rot(-u_mouse.y);
