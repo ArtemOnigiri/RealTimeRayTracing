@@ -61,7 +61,7 @@ float plaIntersect(in vec3 ro, in vec3 rd, in vec4 p) {
 vec3 getSky(vec3 rd) {
 	vec3 col = vec3(0.3, 0.6, 1.0);
 	vec3 sun = vec3(0.95, 0.9, 1.0);
-	sun *= max(0.0, pow(dot(rd, light), 32.0));
+	sun *= max(0.0, pow(dot(rd, light), 256.0));
 	col *= max(0.0, dot(light, vec3(0.0, 0.0, -1.0)));
 	return clamp(sun + col * 0.01, 0.0, 1.0);
 }
@@ -75,11 +75,11 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	spheres[0][0] = vec4(0.0, -1.0, 0.0, 1.0);
 	spheres[0][1] = vec4(1.0, 0.2, 0.1, 1.0);
 	spheres[1][0] = vec4(10.0, 3.0, -0.25, 2.0);
-	spheres[1][1] = vec4(1.0, 1.0, 1.0, 0.0);
+	spheres[1][1] = vec4(1.0, 1.0, 1.0, 0.01);
 	spheres[2][0] = vec4(5.0, 7.0, -0.01, 1.0);
 	spheres[2][1] = vec4(1.0, 1.0, 1.0, -1.0);
 	spheres[3][0] = vec4(1.0, -7.0, -0.01, 0.5);
-	spheres[3][1] = vec4(1.0, 0.0, 1.0, -2.0);
+	spheres[3][1] = vec4(1.0, 0.2, 0.9, -2.0);
 	for(int i = 0; i < spheres.length(); i++) {
 		it = sphIntersect(ro - spheres[i][0].xyz, rd, spheres[i][0].w);
 		if(it.x > 0.0 && it.x < minIt.x) {
@@ -102,9 +102,9 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	if(it.x > 0.0 && it.x < minIt.x) {
 		minIt = it;
 		n = planeNormal;
-		col = vec4(0.5, 0.5, 0.5, 0.0);
+		col = vec4(0.9, 0.9, 0.9, 0.01);
 	}
-	if(minIt.x == MAX_DIST) return vec4(-2.0);
+	if(minIt.x == MAX_DIST) return vec4(getSky(rd), -2.0);
 	if(col.a == -2.0) return col;
 	if(col.a < 0.0) {
 		ro += rd * (minIt.y + 0.001);
@@ -113,7 +113,7 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	}
 	vec3 itPos = ro + rd * it.x;
 	vec3 r = randomOnSphere(itPos.xy + itPos.zz + u_seed1);
-	vec3 diffuse = r * dot(r, n);
+	vec3 diffuse = normalize(r * dot(r, n));
 	vec3 reflected = reflect(rd, n);
 	ro += rd * (minIt.x - 0.001);
 	rd = mix(diffuse, reflected, col.a);
@@ -125,10 +125,10 @@ vec3 traceRay(vec3 ro, vec3 rd) {
 	for(int i = 0; i < MAX_REF; i++)
 	{
 		vec4 refCol = castRay(ro, rd);
-		if(refCol.x == -2.0) return col * getSky(rd);
 		col *= refCol.rgb;
+		if(refCol.a == -2.0) return col;
 	}
-	return col;
+	return vec3(0.0);
 }
 
 void main() {
@@ -137,8 +137,15 @@ void main() {
 	vec3 rayDirection = normalize(vec3(1.0, uv));
 	rayDirection.zx *= rot(-u_mouse.y);
 	rayDirection.xy *= rot(u_mouse.x);
-	vec3 col = traceRay(rayOrigin, rayDirection);
-	col = pow(col, vec3(0.45));
+	vec3 col = vec3(0.0);
+	int samples = 4;
+	for(int i = 0; i < samples; i++) {
+		col += traceRay(rayOrigin, rayDirection);
+	}
+	col /= samples;
+	float white = 20.0;
+	col *= white * 16.0;
+	col = (col * (1.0 + col / white / white)) / (1.0 + col);
 	vec3 sampleCol = texture(u_sample, gl_TexCoord[0].xy).rgb;
 	col = mix(sampleCol, col, u_sample_part);
 	gl_FragColor = vec4(col, 1.0);
