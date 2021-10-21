@@ -1,5 +1,6 @@
 #include <random>
 #include <SFML/Graphics.hpp>
+#include <iostream>
 
 int main()
 {
@@ -8,12 +9,19 @@ int main()
 	int mouseX = w / 2;
 	int mouseY = h / 2;
 	float mouseSensitivity = 3.0f;
-	float speed = 0.1f;
+	float speed = 0.3f;
 	bool mouseHidden = true;
 	bool wasdUD[6] = { false, false, false, false, false, false };
-	sf::Vector3f pos = sf::Vector3f(-5.0f, 0.0f, 0.0f);
+	sf::Vector3f pos = sf::Vector3f(25.0f, 10.0f, -3.0f);
 	sf::Clock clock;
 	int framesStill = 1;
+	int rays = 4;
+	sf::Vector2f lightPos = sf::Vector2f(0.0f, -1.0);
+	float lightSpeed = 0.0005f;
+	bool is_rising = false;
+	int maxFrames = 2, minFps = 15;
+	int frames = 0, s = 0, fps = 0;
+	bool autoRaysSet = true;
 
 	sf::RenderWindow window(sf::VideoMode(w, h), "Ray tracing", sf::Style::Titlebar | sf::Style::Close);
 	window.setFramerateLimit(60);
@@ -34,7 +42,7 @@ int main()
 	outputTextureSpriteFlipped.setPosition(0, h);
 
 	sf::Shader shader;
-	shader.loadFromFile("OutputShader.frag", sf::Shader::Fragment);
+	shader.loadFromFile("Shader.frag", sf::Shader::Fragment);
 	shader.setUniform("u_resolution", sf::Vector2f(w, h));
 
 	std::random_device rd;
@@ -80,7 +88,12 @@ int main()
 				else if (event.key.code == sf::Keyboard::S) wasdUD[2] = true;
 				else if (event.key.code == sf::Keyboard::D) wasdUD[3] = true;
 				else if (event.key.code == sf::Keyboard::Space) wasdUD[4] = true;
-				else if (event.key.code == sf::Keyboard::LShift) wasdUD[5] = true;
+				else if (event.key.code == sf::Keyboard::C) wasdUD[5] = true;
+				else if (event.key.code == sf::Keyboard::LShift) speed = 0.6f;
+				else if (event.key.code == sf::Keyboard::LControl) autoRaysSet = false;
+
+				else if (event.key.code == sf::Keyboard::Subtract && !autoRaysSet && rays > 1) rays--;
+				else if (event.key.code == sf::Keyboard::Add && !autoRaysSet) rays++;
 			}
 			else if (event.type == sf::Event::KeyReleased)
 			{
@@ -89,11 +102,14 @@ int main()
 				else if (event.key.code == sf::Keyboard::S) wasdUD[2] = false;
 				else if (event.key.code == sf::Keyboard::D) wasdUD[3] = false;
 				else if (event.key.code == sf::Keyboard::Space) wasdUD[4] = false;
-				else if (event.key.code == sf::Keyboard::LShift) wasdUD[5] = false;
+				else if (event.key.code == sf::Keyboard::C) wasdUD[5] = false;
+				else if (event.key.code == sf::Keyboard::LShift) speed = 0.3f;
+				else if (event.key.code == sf::Keyboard::LControl) autoRaysSet = true;
 			}
 		}
 		if (mouseHidden)
 		{
+			if (framesStill > maxFrames + 1) framesStill = maxFrames;
 			float mx = ((float)mouseX / w - 0.5f) * mouseSensitivity;
 			float my = ((float)mouseY / h - 0.5f) * mouseSensitivity;
 			sf::Vector3f dir = sf::Vector3f(0.0f, 0.0f, 0.0f);
@@ -119,27 +135,56 @@ int main()
 					break;
 				}
 			}
+
+			if (lightPos.y < 0.5f && !is_rising) {
+				lightPos.y += lightSpeed;
+				lightPos.x -= lightSpeed;
+			}
+			else if (lightPos.y > 0.5f && !is_rising) {
+				lightPos.x = 2.01;
+				is_rising = true;
+			}
+			if (lightPos.y > -1 && is_rising) {
+				lightPos.y -= lightSpeed;
+				lightPos.x -= lightSpeed;
+			}
+			else if (lightPos.y <= -1 && is_rising) {
+				is_rising = false;
+			}
+			shader.setUniform("u_light", lightPos);
 			shader.setUniform("u_pos", pos);
+			shader.setUniform("u_rays", rays);
 			shader.setUniform("u_mouse", sf::Vector2f(mx, my));
 			shader.setUniform("u_time", clock.getElapsedTime().asSeconds());
 			shader.setUniform("u_sample_part", 1.0f / framesStill);
 			shader.setUniform("u_seed1", sf::Vector2f((float)dist(e2), (float)dist(e2)) * 999.0f);
 			shader.setUniform("u_seed2", sf::Vector2f((float)dist(e2), (float)dist(e2)) * 999.0f);
+			if (framesStill % 2 == 1)
+			{
+				shader.setUniform("u_sample", firstTexture.getTexture());
+				outputTexture.draw(firstTextureSpriteFlipped, &shader);
+				window.draw(outputTextureSprite);
+			}
+			else
+			{
+				shader.setUniform("u_sample", outputTexture.getTexture());
+				firstTexture.draw(outputTextureSpriteFlipped, &shader);
+				window.draw(firstTextureSprite);
+			}
+			window.display();
 		}
-		if (framesStill % 2 == 1)
-		{
-			shader.setUniform("u_sample", firstTexture.getTexture());
-			outputTexture.draw(firstTextureSpriteFlipped, &shader);
-			window.draw(outputTextureSprite);
+		if ((int)clock.getElapsedTime().asSeconds() - s) {
+			s = clock.getElapsedTime().asSeconds();
+			fps = frames;
+			frames = 0;
+			if (autoRaysSet) {
+				if (fps < minFps && rays > 1) rays--;
+				else if (fps > minFps + 5) rays++;
+			}
+			std::cout << fps << " -- " << rays << std::endl;
 		}
-		else
-		{
-			shader.setUniform("u_sample", outputTexture.getTexture());
-			firstTexture.draw(outputTextureSpriteFlipped, &shader);
-			window.draw(firstTextureSprite);
-		}
-		window.display();
 		framesStill++;
+		frames++;
 	}
 	return 0;
 }
