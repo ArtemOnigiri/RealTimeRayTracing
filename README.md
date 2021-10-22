@@ -12,12 +12,12 @@ This is an improvement of ArtemOnigiri's RealTimeRayTracing project.
 ![Tesla Cybertrack 3D model](img/CarModel1.png)
 ![Tesla Cybertrack 3D model](img/CarModel2.png)
 
-2. Dynamic light has been added. "Sun" moves at a constant speed, sets below the horizon on one side and rises on the other.
+2. Dynamic light has been added. Sun moves at a constant speed, sets below the horizon on one side and rises on the other.
 
 ![Sun sets](img/EveningView.png)
 ![Sun rises](img/MorningView.png)
 
-3. Added ability to create Cyclic animations for objects. Creating animations you can change positions of objects, their size, color and surface smoothness.
+3. Added ability to create cyclic animations for objects. Creating animations you can change positions of objects, their size, color and surface smoothness.
 4. Added fog simulation. You can change its color, density and cloud size.
 
 ![Fog](img/FogSimulation.png)
