@@ -1,33 +1,31 @@
 # RealTimeRayTracing
 
-This is an improvement of ArtemOnigiri's RealTimeRayTracing project.
+Here are some improvements for ArtemOnigiri's RealTimeRayTracing project.
 
-![Ray tracing](img/BaseView1.png)
-![Ray tracing](img/BaseView2.png)
+![Ray tracing](img/GeneralView1.png)
 
-## My main improvements:
+## My improvements:
 
-1. Added drawing of triangles. Thanks to this, it became possible to create complex 3D models. For example, I created 3D model of Tesla Cybertrack from 80 triangles.
+1. Added ability to create triangles. Thanks to this, it became possible to create complex 3D models. For example, I created 3D model of Tesla CyberTruck from 80 triangles.
 
-![Tesla Cybertrack 3D model](img/CarModel1.png)
-![Tesla Cybertrack 3D model](img/CarModel2.png)
+![Tesla CyberTruck](img/CarModel1.png)
+![Tesla CyberTruck](img/CarModel2.png)
 
-2. Dynamic light has been added. Sun moves at a constant speed, sets below the horizon on one side and rises on the other.
+2. Added ability to create cyclic animations for objects. Using animations you can change positions of objects, their size, color and surface reflectivity.
 
-![Sun sets](img/EveningView.png)
-![Sun rises](img/MorningView.png)
+![Ray tracing](img/CloseView.png)
 
-3. Added ability to create cyclic animations for objects. Creating animations you can change positions of objects, their size, color and surface smoothness.
-4. Added fog simulation. You can change its color, density and cloud size.
+3. Improved performance and image quality. Demo images show a render on NVIDIA GeForce GTX 1650 in 30 samples at 15 FPS.
 
-![Fog](img/FogSimulation.png)
+![Ray tracing](img/GeneralView2.png)
 
-5. Added drawing of cylinders.
+4. Added system for automatic dynamic adjustment of image quality in accordance with capabilities of your GPU.
 
-## Additional improvements:
+![Ray tracing](img/Reflections.png)
 
-1. Added FPS counter. (Value is output to the console)
-2. Added automatic and manual adjustment of rays per pixel.
-3. Improved camera control. Downward movement is carried out by C key now. Added acceleration, carried out by LShift key.
+5. Added fog simulation. You can change its color, density and cloud size.
 
-![Top view](img/SceneView.png)
+![Ray tracing](img/FogSimulation.png)
+
+6. Added dynamic light source on the scene.
+7. Added ability to create cylinders.
