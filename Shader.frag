@@ -12,7 +12,8 @@ uniform int u_samples;
 uniform vec2 u_light;
 
 const float MAX_DIST = 99999.0;
-const int MAX_REF = 4;
+const int MAX_REF = 256;
+const float MIN_RP = 0.01;
 vec3 light = normalize(vec3(0.0, u_light.x, u_light.y));
 uvec4 R_STATE;
 
@@ -153,83 +154,48 @@ vec3 getSky(vec3 rd) {
 	return clamp(sun + col * 0.01, 0.0, 1.0);
 }
 
-mat3x3[6] Pyramid(vec3 a, vec3 b, vec3 c, vec3 d, vec3 h) {
-	mat3x3 triangles[6];
-	triangles[0][0] = d;
-	triangles[0][1] = b;
-	triangles[0][2] = a;
-
-	triangles[1][0] = b;
-	triangles[1][1] = d;
-	triangles[1][2] = c;
-
-	triangles[2][0] = a;
-	triangles[2][1] = b;
-	triangles[2][2] = h;
-
-	triangles[3][0] = b;
-	triangles[3][1] = c;
-	triangles[3][2] = h;
-
-	triangles[4][0] = h;
-	triangles[4][1] = c;
-	triangles[4][2] = d;
-
-	triangles[5][0] = h;
-	triangles[5][1] = d;
-	triangles[5][2] = a;
+mat3x3[40] Prism(int faces, float h, float ra, vec3 pos) {
+	mat3x3[40] triangles;
+	if (faces > 10) return triangles;
+	float angle = 360 / faces * (3.1415926 / 180);
+	for (int i = 0; i < faces; i++) {
+		float x1 = pos.x + ra * cos(angle * i);
+		float y1 = pos.y + ra * sin(angle * i);
+		float x2 = pos.x + ra * cos(angle * (i + 1));
+		float y2 = pos.y + ra * sin(angle * (i + 1));
+		triangles[i] = mat3x3( vec3(pos.x, pos.y, pos.z + h), vec3(x1, y1, pos.z + h), vec3(x2, y2, pos.z + h) );
+	}
+	for (int i = 0; i < faces; i++) {
+		float x1 = pos.x + ra * cos(angle * i);
+		float y1 = pos.y + ra * sin(angle * i);
+		float x2 = pos.x + ra * cos(angle * (i + 1));
+		float y2 = pos.y + ra * sin(angle * (i + 1));
+		triangles[i + faces * 3] = mat3x3( vec3(pos.x, pos.y, pos.z), vec3(x2, y2, pos.z), vec3(x1, y1, pos.z) );
+	}
+	for (int i = 0; i < faces * 2; i++) {
+		if (i < faces) {
+			triangles[i + faces] = mat3x3( triangles[i + faces * 2][1], triangles[i][2], triangles[i][1] ); 
+		} else {
+			triangles[i + faces] = mat3x3( triangles[i][1], triangles[i + faces * 2][2], triangles[i + faces * 2][1] ); 
+		}
+	}
 	return triangles;
 }
 
-mat3x3[12] Box(vec3 a, vec3 b, vec3 c, vec3 d, vec3 a1, vec3 b1, vec3 c1, vec3 d1) {
-	mat3x3 triangles[12];
-	triangles[0][0] = a1;
-	triangles[0][1] = a;
-	triangles[0][2] = b;
-
-	triangles[1][0] = a1;
-	triangles[1][1] = b;
-	triangles[1][2] = b1;
-
-	triangles[2][0] = b1;
-	triangles[2][1] = b;
-	triangles[2][2] = c;
-
-	triangles[3][0] = b1;
-	triangles[3][1] = c;
-	triangles[3][2] = c1;
-
-	triangles[4][0] = c1;
-	triangles[4][1] = c;
-	triangles[4][2] = d;
-
-	triangles[5][0] = c1;
-	triangles[5][1] = d;
-	triangles[5][2] = d1;
-
-	triangles[6][0] = d1;
-	triangles[6][1] = d;
-	triangles[6][2] = a1;
-
-	triangles[7][0] = d;
-	triangles[7][1] = a;
-	triangles[7][2] = a1;
-
-	triangles[8][0] = c;
-	triangles[8][1] = b;
-	triangles[8][2] = a;
-
-	triangles[9][0] = a;
-	triangles[9][1] = d;
-	triangles[9][2] = c;
-
-	triangles[10][0] = a1;
-	triangles[10][1] = b1;
-	triangles[10][2] = c1;
-
-	triangles[11][0] = c1;
-	triangles[11][1] = d1;
-	triangles[11][2] = a1;
+mat3x3[20] Pyramid(int faces, float h, float ra, vec3 pos) {
+	mat3x3[20] triangles;
+	if (faces > 10) return triangles;
+	float angle = 360 / faces * (3.1415926 / 180);
+	for (int i = 0; i < faces; i++) {
+		float x1 = pos.x + ra * cos(angle * i);
+		float y1 = pos.y + ra * sin(angle * i);
+		float x2 = pos.x + ra * cos(angle * (i + 1));
+		float y2 = pos.y + ra * sin(angle * (i + 1));
+		triangles[i] = mat3x3( vec3(pos.x, pos.y, pos.z), vec3(x1, y1, pos.z), vec3(x2, y2, pos.z) );
+	}
+	for (int i = 0; i < faces; i++) {
+		triangles[i + faces] = mat3x3( triangles[i][1], triangles[i][2], vec3(pos.x, pos.y, pos.z + h) );
+	}
 	return triangles;
 }
 
@@ -415,7 +381,7 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 			minIt = it;
 			vec3 itPos = ro + rd * it.x;
 			n = normalize(itPos - fog.xyz);
-			col = vec4(0.65, 0.55, 0.45, 0.0);
+			col = vec4(0.65, 0.55, 0.45, 0.01);
 		}
 
 		vec3 boxN;
@@ -435,19 +401,12 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 	}
 
 	if (colliderId == 3) {
-		mat3x3[6] pyramid = Pyramid( vec3(39.5, 5.5, 0.5), vec3(40.5, 5.5, 0.5), vec3(40.5, 4.5, 0.5), vec3(39.5, 4.5, 0.5), vec3(40.0, 5.0, 1.0) );
-
-		mat3x3 Triangles[24];
+		mat3x3 Triangles[28];
 
 		Triangles[0] = mat3x3( vec3(39.5, 4.5, -0.5), vec3(40.5, 4.5, -0.5), vec3(40.0, 5.0, -1.0) );
 		Triangles[1] = mat3x3( vec3(40.5, 4.5, -0.5), vec3(40.5, 5.5, -0.5), vec3(40.0, 5.0, -1.0) );
 		Triangles[2] = mat3x3( vec3(39.5, 5.5, -0.5), vec3(39.5, 4.5, -0.5), vec3(40.0, 5.0, -1.0) );
 		Triangles[3] = mat3x3( vec3(40.5, 5.5, -0.5), vec3(39.5, 5.5, -0.5), vec3(40.0, 5.0, -1.0) );
-
-		Triangles[4] = pyramid[2];
-		Triangles[5] = pyramid[3];
-		Triangles[6] = pyramid[4];
-		Triangles[7] = pyramid[5];
 
 		Triangles[8] = mat3x3( vec3(40.0, 6.0, 0.0), vec3(39.5, 5.5, 0.5), vec3(39.5, 5.5, -0.5) );
 		Triangles[9] = mat3x3( vec3(40.5, 5.5, -0.5), vec3(40.0, 6.0, 0.0), vec3(39.5, 5.5, -0.5) );
@@ -469,6 +428,11 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 		Triangles[22] = mat3x3( vec3(40.5, 4.5, -0.5), vec3(40.5, 4.5, 0.5), vec3(41.0, 5.0, 0.0) );
 		Triangles[23] = mat3x3( vec3(41.0, 5.0, 0.0), vec3(40.5, 4.5, 0.5), vec3(40.5, 5.5, 0.5) );
 
+		Triangles[24] = mat3x3( vec3(39.5, 4.5, 0.5), vec3(40.5, 4.5, 0.5), vec3(40.0, 5.0, 1.0) );
+		Triangles[25] = mat3x3( vec3(40.5, 4.5, 0.5), vec3(40.5, 5.5, 0.5), vec3(40.0, 5.0, 1.0) );
+		Triangles[26] = mat3x3( vec3(39.5, 5.5, 0.5), vec3(39.5, 4.5, 0.5), vec3(40.0, 5.0, 1.0) );
+		Triangles[27] = mat3x3( vec3(40.5, 5.5, 0.5), vec3(39.5, 5.5, 0.5), vec3(40.0, 5.0, 1.0) );
+
 		for (int i = 0; i < Triangles.length(); i++) {
 			it = vec2(triIntersection(ro, rd, Triangles[i][0], Triangles[i][1], Triangles[i][2]));
 			if(it.x > 0.0 && it.x < minIt.x) {
@@ -482,54 +446,86 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 	}
 
 	if (colliderId == 4) {
-		mat3x3[6] pyramid = Pyramid( vec3(45.0, 10.0, 1.0), vec3(43.0, 10.0, 1.0), vec3(43.0, 8.0, 1.0), vec3(45.0, 8.0, 1.0), vec3(44.0, 9.0, -1.0) );
+		int faces = 3;
+		vec3 pos = vec3(43.5, 3.0, 1.5);
+		float h = -2.5;
+		float ra = 2.0;
+		float angle = 360 / faces * (3.1415926 / 180);
 
-		mat3x3 Triangles[6];
-		Triangles[0] = pyramid[0];
-		Triangles[1] = pyramid[1];
-		Triangles[2] = pyramid[2];
-		Triangles[3] = pyramid[3];
-		Triangles[4] = pyramid[4];
-		Triangles[5] = pyramid[5];
-
-		for (int i = 0; i < Triangles.length(); i++) {
-			it = vec2(triIntersection(ro, rd, Triangles[i][0], Triangles[i][1], Triangles[i][2]));
+		for (int i = 0; i < faces * 2; i++) {
+			mat3x3 triangle;
+			if (i < faces) {
+				float x1 = pos.x + ra * cos(angle * i);
+				float y1 = pos.y + ra * sin(angle * i);
+				float x2 = pos.x + ra * cos(angle * (i + 1));
+				float y2 = pos.y + ra * sin(angle * (i + 1));
+				triangle = mat3x3( vec3(pos.x, pos.y, pos.z), vec3(x1, y1, pos.z), vec3(x2, y2, pos.z) );
+			}
+			else {
+				float x1 = pos.x + ra * cos(angle * (i - faces));
+				float y1 = pos.y + ra * sin(angle * (i - faces));
+				float x2 = pos.x + ra * cos(angle * (i - faces + 1));
+				float y2 = pos.y + ra * sin(angle * (i - faces + 1));
+				triangle = mat3x3( vec3(x1, y1, pos.z), vec3(x2, y2, pos.z), vec3(pos.x, pos.y, pos.z + h) );
+			}
+			it = vec2(triIntersection(ro, rd, triangle[0], triangle[1], triangle[2]));
 			if(it.x > 0.0 && it.x < minIt.x) {
 				minIt = it;
-				vec3 v0 = Triangles[i][0] - Triangles[i][1];
-				vec3 v1 = Triangles[i][2] - Triangles[i][1];
+				vec3 v0 = triangle[0] - triangle[1];
+				vec3 v1 = triangle[2] - triangle[1];
 				n = normalize(cross(v0, v1));
-				col = vec4(0.2, 0.9, 0.1, 0.05);
+				col = vec4(move(1.0, 10.0, 0.0), move(1.0, 10.0, 5.0), move(1.0, 10.0, 10.0), 0.1);
 			}
 		}
 	}
 
 	if (colliderId == 5) {
-		mat3x3[12] trapezoid = Box(vec3(40.5, 10.5, -0.7), vec3(40.5, 11.5, -0.7), vec3(41.5, 11.5, -0.7), vec3(41.5, 10.5, -0.7), vec3(40.0, 10.0, 1.0), vec3(40.0, 12.0, 1.0), vec3(42.0, 12.0, 1.0), vec3(42.0, 10.0, 1.0));
+		int faces = 6;
+		vec3 pos = vec3(44.0, 9.5, 1.3);
+		float h = -3.0;
+		float ra = 1.0;
+		float angle = 360 / faces * (3.1415926 / 180);
 
-		mat3x3 Triangles[12];
+		for (int i = 0; i < faces * 4; i++) {
+			mat3x3 triangle;
+			if (i < faces) {
+				float x1 = pos.x + ra * cos(angle * i);
+				float y1 = pos.y + ra * sin(angle * i);
+				float x2 = pos.x + ra * cos(angle * (i + 1));
+				float y2 = pos.y + ra * sin(angle * (i + 1));
+				triangle = mat3x3( vec3(pos.x, pos.y, pos.z + h), vec3(x1, y1, pos.z + h), vec3(x2, y2, pos.z + h) );
+			}
+			else if (i < faces * 3) {
+				float x1u = pos.x + ra * cos(angle * i);
+				float y1u = pos.y + ra * sin(angle * i);
+				float x2u = pos.x + ra * cos(angle * (i + 1));
+				float y2u = pos.y + ra * sin(angle * (i + 1));
 
-		Triangles[0] = trapezoid[0];
-		Triangles[1] = trapezoid[1];
-		Triangles[2] = trapezoid[2];
-		Triangles[3] = trapezoid[3];
-		Triangles[4] = trapezoid[4];
-		Triangles[5] = trapezoid[5];
-		Triangles[6] = trapezoid[6];
-		Triangles[7] = trapezoid[7];
-		Triangles[8] = trapezoid[8];
-		Triangles[9] = trapezoid[9];
-		Triangles[10] = trapezoid[10];
-		Triangles[11] = trapezoid[11];
+				float x1b = pos.x + ra * cos(angle * (i + faces * 3));
+				float y1b = pos.y + ra * sin(angle * (i + faces * 3));
+				float x2b = pos.x + ra * cos(angle * (i + 1 + faces * 3));
+				float y2b = pos.y + ra * sin(angle * (i + 1 + faces * 3));
 
-		for (int i = 0; i < Triangles.length(); i++) {
-			it = vec2(triIntersection(ro, rd, Triangles[i][0], Triangles[i][1], Triangles[i][2]));
+				if (i < faces * 2) {
+					triangle = mat3x3( vec3(x2b, y2b, pos.z), vec3(x2u, y2u, pos.z + h), vec3(x1u, y1u, pos.z + h) ); 
+				} else {
+					triangle = mat3x3( vec3(x1u, y1u, pos.z + h), vec3(x1b, y1b, pos.z), vec3(x2b, y2b, pos.z) ); 
+				}
+			}
+			else {
+				float x1 = pos.x + ra * cos(angle * (i + faces * 3));
+				float y1 = pos.y + ra * sin(angle * (i + faces * 3));
+				float x2 = pos.x + ra * cos(angle * (i + 1 + faces * 3));
+				float y2 = pos.y + ra * sin(angle * (i + 1 + faces * 3));
+				triangle = mat3x3( vec3(pos.x, pos.y, pos.z), vec3(x2, y2, pos.z), vec3(x1, y1, pos.z) );
+			}
+			it = vec2(triIntersection(ro, rd, triangle[0], triangle[1], triangle[2]));
 			if(it.x > 0.0 && it.x < minIt.x) {
 				minIt = it;
-				vec3 v0 = Triangles[i][0] - Triangles[i][1];
-				vec3 v1 = Triangles[i][2] - Triangles[i][1];
+				vec3 v0 = triangle[0] - triangle[1];
+				vec3 v1 = triangle[2] - triangle[1];
 				n = normalize(cross(v0, v1));
-				col = vec4(move(1.0, 10.0, 0.0), move(1.0, 10.0, 5.0), move(1.0, 10.0, 10.0), move(1.0, 5.0, 0.0));
+				col = vec4(0.4, 1.0, 0.2, 0.99);
 			}
 		}
 	}
@@ -575,7 +571,7 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 
 	if (colliderId == 8) {
 		mat2x4 spheres[1];
-		spheres[0][0] = vec4(43.5, 3.0, -0.01, 1.0 - move(0.8, 10.0, 0.0));
+		spheres[0][0] = vec4(41.5, 7.5, move(0.8, 10.0, 0.0), 1.0 - move(0.8, 10.0, 0.0));
 
 		spheres[0][1] = vec4(1.0, 1.0, 1.0, 0.5);
 
@@ -618,11 +614,11 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	colliders[1] = vec4(-2.0, 0.0, 0.0, 11.0);
 	colliders[2] = vec4(20.5, 40.5, 0.0, 15.0);
 	colliders[3] = vec4(40.0, 5.0, 0.0, 1.0);
-	colliders[4] = vec4(44.0, 9.0, 0.6, 1.8);
-	colliders[5] = vec4(41.0, 11.0, 0.6, 1.8);
+	colliders[4] = vec4(43.5, 3.0, 0.6, 1.8);
+	colliders[5] = vec4(44.0, 9.5, 0.0, 2.0);
 	colliders[6] = vec4(38.0, 3.5, 0.5, 1.5);
 	colliders[7] = vec4(47.0, 2.0, -4.0, 4.0);
-	colliders[8] = vec4(43.5, 3.0, 0.0, 1.1);
+	colliders[8] = vec4(41.5, 7.5, 0.0, 1.1);
 
 	for(int i = 0; i < colliders.length(); i++) {
 		if (has_sphIntersection(ro, rd, colliders[i])) {
@@ -643,7 +639,6 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 		n = planeNormal;
 		col = vec4(0.5, 0.25, 0.1, 0.05);
 	}
-
 
 	if(minIt.x == MAX_DIST) return vec4(getSky(rd), -2.0);
 	if(col.a == -2.0) return col;
@@ -668,11 +663,14 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 
 vec3 traceRay(vec3 ro, vec3 rd) {
 	vec3 col = vec3(1.0);
-	for(int i = 0; i < MAX_REF; i++)
+	float rp = 1.0;
+	for (int i = 0; i < MAX_REF; i++)
 	{
 		vec4 refCol = castRay(ro, rd);
 		col *= refCol.rgb;
 		if(refCol.a == -2.0) return col;
+		rp *= abs(refCol.a);
+		if(rp < MIN_RP) return vec3(0.0);
 	}
 	return vec3(0.0);
 }
@@ -694,6 +692,7 @@ void main() {
 		col += traceRay(rayOrigin, rayDirection);
 	}
 	col /= samples;
+
 	float white = 20.0;
 	col *= white * 16.0;
 	col = (col * (1.0 + col / white / white)) / (1.0 + col);

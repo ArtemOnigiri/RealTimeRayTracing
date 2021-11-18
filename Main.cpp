@@ -15,12 +15,17 @@ int main()
 	sf::Vector3f pos = sf::Vector3f(25.0f, 10.0f, -3.0f);
 	sf::Clock clock;
 	int samples = 20;
-	float lightSpeed = 0.0005f;
+	float lightSpeed = 0.0001f;
 	sf::Vector2f lightPos = sf::Vector2f(0.0f, -1.0f);
 	bool is_rising = false;
 	int frames = 0, s = 0, fps = 0, minFps;
+	sf::Vector2i delta = sf::Vector2i(1, 1);
 
-	sf::RenderWindow window(sf::VideoMode(w, h), "Ray tracing", sf::Style::Titlebar | sf::Style::Close);
+	sf::ContextSettings settings;
+	settings.depthBits = 24;
+	settings.stencilBits = 8;
+	settings.antialiasingLevel = 16;
+	sf::RenderWindow window(sf::VideoMode(w, h), "Ray tracing", sf::Style::Titlebar | sf::Style::Close, settings);
 	window.setFramerateLimit(60);
 	window.setMouseCursorVisible(false);
 
@@ -32,6 +37,7 @@ int main()
 	firstTextureSpriteFlipped.setPosition(0, h);
 
 	sf::RenderTexture outputTexture;
+	outputTexture.setSmooth(true);
 	outputTexture.create(w, h);
 	sf::Sprite outputTextureSprite = sf::Sprite(outputTexture.getTexture());
 	sf::Sprite outputTextureSpriteFlipped = sf::Sprite(firstTexture.getTexture());
@@ -135,7 +141,7 @@ int main()
 
 			shader.setUniform("u_light", lightPos);
 			shader.setUniform("u_pos", pos);
-			shader.setUniform("u_samples", samples);
+			shader.setUniform("u_samples", samples > 0 ? samples : 1);
 			shader.setUniform("u_mouse", sf::Vector2f(mx, my));
 			shader.setUniform("u_time", clock.getElapsedTime().asSeconds());
 			shader.setUniform("u_sample_part", 1.0f);
@@ -151,8 +157,15 @@ int main()
 				fps = frames;
 				frames = 0;
 				minFps = 10 + lightPos.y * -5;
-				if (fps < minFps && samples > 1) samples--;
-				else if (fps > minFps + 3) samples++;
+				if (fps > minFps + 3) {
+					samples += delta.x;
+					delta = sf::Vector2i(delta.x + 1, 1);
+				}
+				else if (fps < minFps && samples > delta.y) {
+					samples -= delta.y;
+					delta = sf::Vector2i(1, delta.y + 1);
+				}
+				else { delta = sf::Vector2i(1, 1); }
 				std::cout << "FPS: " << fps << ", Samples: " << samples << std::endl;
 			}
 			frames++;
