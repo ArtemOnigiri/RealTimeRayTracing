@@ -1,31 +1,45 @@
-# RealTimeRayTracing
+# Real Time Ray Tracing
 
-Here are some improvements for ArtemOnigiri's RealTimeRayTracing project.
+A real-time ray tracing algorithm that allows you to render 3D models, create animations, and map textures.
 
-![Ray tracing](img/GeneralView1.png)
+![Ray tracing](img/img1.png)
 
-## My improvements:
+## Polygons
 
-1. Added the ability to create triangles. Thanks to this, it became possible to create complex 3D models. For example, I created a 3D model of a Tesla CyberTruck from 80 triangles.
+Polygon rendering is supported, so you can create complex 3D models. For example, I created a 3D model of Tesla Cybertruck from 80 polygons.
 
-![Tesla CyberTruck](img/CarModel1.png)
-![Tesla CyberTruck](img/CarModel2.png)
+![Ray tracing](img/img6.png)
 
-2. Added the ability to create cyclic animations for objects. Using animations, you can change the position of objects, their size, color and reflectivity of the surface.
+Also added the ability to quickly and conveniently create pyramids and prisms with a configurable number of faces.
 
-![Ray tracing](img/CloseView.png)
+![Ray tracing](img/img7.png)
 
-3. Improved algorithm for calculating ray reflections from object surfaces. Now the number of reflections depends on the reflectivity of the surface.
+## Texturing
 
-![Ray tracing](img/GeneralView2.png)
+Texture mapping is supported. 
+Depending on the geometry of the object, you can choose one of the texturing methods (planar, cylindrical or spherical) in order to get the best result.
 
-4. Added a system for dynamically adjusting the number of samples per pixel to ensure the best balance of quality and performance. Demo images show rendering on NVIDIA GeForce GTX 1650 in 30 samples at 15 FPS.
+![Ray tracing](img/img4.png)
 
-![Ray tracing](img/Reflections.png)
+## Animations
 
-5. Added fog simulation. You can change the color, density and size of the cloud.
+You can create an animation for each object in the scene. This allows you to dynamically change the properties of an object, such as position, size, and color. 
+Also you can rotate objects or move them in a circular orbit by a special function.
 
-![Ray tracing](img/FogSimulation.png)
+![Ray tracing](img/img2.png)
 
-6. Improved image quality, reduced noise, added anti-aliasing.
-7. Added the ability to create cylinders, added functions for quick and convenient creation of the right prisms and pyramids.
+## Optimization
+
+The performance of the program is quite high. On NVIDIA GeForce GTX 1650 rendering at 15 frames per second is performed with 30 samples per pixel. 
+This performance is due to the optimization of rendering multi-polygonal objects. The intersection of the ray with each of the polygons of the object is calculated only if the ray has an intersection with the invisible sphere in which this object is located.
+The number of samples per pixel is adjusted automatically depending on the FPS to achieve the best balance between image quality and rendering speed.
+
+![Ray tracing](img/img5.png)
+
+## Other
+
+The rendering quality has been improved.
+Added day and night shift.
+Cylinder rendering is supported.
+
+![Ray tracing](img/img3.png)

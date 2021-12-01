@@ -4,16 +4,18 @@ uniform vec2 u_resolution;
 uniform vec2 u_mouse;
 uniform vec3 u_pos;
 uniform float u_time;
-uniform sampler2D u_sample;
-uniform float u_sample_part;
 uniform vec2 u_seed1;
 uniform vec2 u_seed2;
 uniform int u_samples;
 uniform vec2 u_light;
 
+uniform sampler2D u_texture;
+uniform sampler2D u_brick_texture;
+uniform sampler2D u_wood_texture;
+uniform sampler2D u_marble_texture;
+
 const float MAX_DIST = 99999.0;
-const int MAX_REF = 256;
-const float MIN_RP = 0.01;
+const int MAX_REF = 4;
 vec3 light = normalize(vec3(0.0, u_light.x, u_light.y));
 uvec4 R_STATE;
 
@@ -45,13 +47,29 @@ float random()
 	return 2.3283064365387e-10 * float((R_STATE.x ^ R_STATE.y ^ R_STATE.z ^ R_STATE.w));
 }
 
-float move(float x, float t, float d) 
+float atan2(vec2 dir)
+{
+    float angle = asin(dir.x) > 0 ? acos(dir.y) : -acos(dir.y);
+    return angle;
+}
+
+float linearMotion(float x, float t, float d) 
 {
 	if (u_time < d) return 0.0;
 	float time = (u_time - d) - (t * floor((u_time - d) / t));
 	float dist = x * (time / t);
 	if (time < t / 2.0) return dist;
 	else return -dist + x;
+}
+
+vec2 rotation(float r, float t, float d)
+{
+	float time = (u_time - d) - (t * floor((u_time - d) / t));
+	if (u_time < d) time = 0;
+	float angle = 360 * (time / t) * (3.1415926 / 180);
+	float x = r * cos(angle);
+	float y = r * sin(angle);
+	return vec2(x, y);
 }
 
 vec3 randomOnSphere() {
@@ -154,6 +172,35 @@ vec3 getSky(vec3 rd) {
 	return clamp(sun + col * 0.01, 0.0, 1.0);
 }
 
+vec2 mapTexture(vec3 p, vec3 n, vec3 pos, int mode) {
+	vec3 point = (p - pos);
+    vec2 result = vec2(0);
+    if (mode == 0) { // Plane
+        result.x = mod(point.x, 1);
+        result.y = mod(point.y, 1);
+	}
+    else if (mode == 1) { // Cylinder
+        point = normalize(point);
+        result.x = (1 + point.z) / 2;
+        result.y = (1 + atan2(point.xy) / (3.1415926 / 2)) / 2;
+	}
+    else if (mode == 2) { // Sphere
+		float phi = acos( -n.z );
+		result.x = 1 - phi / 3.1415926;
+		float theta = (acos(n.y / sin( phi ))) / ( 2 * 3.1415926);
+		result.y = n.x > 0 ? theta : 1 - theta;
+    }
+	else if (mode == 3) { // Cube
+		vec2 norm;
+		if (abs(n.x) == 1.0) norm = point.yz;
+		if (abs(n.y) == 1.0) norm = point.xz;
+		if (abs(n.z) == 1.0) norm = point.xy;
+        result.x = mod(norm.x, 1);
+        result.y = mod(norm.y, 1);
+	}
+    return result;
+}
+
 mat3x3[40] Prism(int faces, float h, float ra, vec3 pos) {
 	mat3x3[40] triangles;
 	if (faces > 10) return triangles;
@@ -206,14 +253,26 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 	vec3 n;
 
 	if (colliderId == 0) {
+		vec4 sphere = vec4(41.5, 7.5, 0.0, 1.0);
+
+		it = sphIntersect(ro - sphere.xyz, rd, sphere.w);
+		if(it.x > 0.0 && it.x < minIt.x) {
+			minIt = it;
+			vec3 itPos = ro + rd * it.x;
+			n = normalize(itPos - sphere.xyz);
+			vec2 uv = mapTexture(itPos, n, vec3(0), 2);
+			col = vec4(texture(u_texture, uv).rgb, 0.1);
+		}
+
+
 		mat2x4 spheres[4];
 		spheres[0][0] = vec4(39.0, 8.0, -0.01, 1.0);
 		spheres[1][0] = vec4(41.0, 1.0, -0.01, 1.0);
-		spheres[2][0] = vec4(36.0 + move(20.0, 32.0, 0.0), move(20.0, 32.0, 8.0), -4.0, 0.5);
-		spheres[3][0] = vec4(46.0 - move(20.0, 32.0, 0.0), 10 - move(20.0, 32.0, 8.0), -4.0, 0.5);
+		spheres[2][0] = vec4(vec2(42.0, 5.0) + rotation(5, 15, 0), -4.0, 0.5);
+		spheres[3][0] = vec4(vec2(42.0, 5.0) + rotation(5, 15, 7.5), -4.0, 0.5);
 
 		spheres[0][1] = vec4(1.0, 1.0, 1.0, -0.5);
-		spheres[1][1] = vec4(1.0, 0.0, 0.5, 1.0);
+		spheres[1][1] = vec4(1.0, 0.0, 0.3, 1.0);
 		spheres[2][1] = vec4(1.0, 1.0, 1.0, -2.0);
 		spheres[3][1] = vec4(1.0, 1.0, 1.0, -2.0);
 
@@ -229,20 +288,44 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 
 		vec3 boxN;
 
-		mat2x4 boxes[2];
+		mat2x4 boxes[4];
 		boxes[0][0] = vec4(45.0, 6.0, -0.001, 1.0);
 		boxes[1][0] = vec4(47.0, 2.0, -0.001, 1.0);
+		boxes[2][0] = vec4(47.0, 0.0 + linearMotion(8.0, 10.0, 0.0), -3.001 + linearMotion(2.0, 5.0, 0.0), 1.0);
+		boxes[3][0] = vec4(47.0, 4.0 - linearMotion(8.0, 10.0, 0.0), -5.001 + linearMotion(2.0, 5.0, 0.0), 1.0);
 
 		boxes[0][1] = vec4(0.9, 0.2, 0.2, -0.5);
-		boxes[1][1] = vec4(1.0, 0.1, 0.1, 1.0);
+		boxes[1][1] = vec4(1.0, 0.1, 0.1, 0.1);
+		boxes[2][1] = vec4(0.1, 1.0, 0.1, 0.1);
+		boxes[3][1] = vec4(0.1, 0.1, 1.0, 0.1);
 
 		for(int i = 0; i < boxes.length(); i++) {
 			it = boxIntersection(ro - boxes[i][0].xyz, rd, vec3(boxes[i][0].w), boxN);
 			if(it.x > 0.0 && it.x < minIt.x) {
 				minIt = it;
 				n = boxN;
-				col = boxes[i][1];
+				if (i == 0) col = boxes[i][1];
+				else {
+					vec3 itPos = ro + rd * it.x;
+					vec2 uv = mapTexture(itPos, n, boxes[i][0].xyz, 3);
+					if (i == 1) col = vec4(texture(u_marble_texture, uv).rgb, boxes[i][1].w);
+					if (i == 2) col = vec4(texture(u_brick_texture, uv).rgb, boxes[i][1].w);
+					if (i == 3) col = vec4(texture(u_wood_texture, uv).rgb, boxes[i][1].w);
+				}
 			}
+		}
+
+		mat2x3 Cylinder;
+		Cylinder[0] = vec3(vec2(38.5, 2.5) + rotation(1.0, 7.0, 0.0), 0.5);
+		Cylinder[1] = vec3(vec2(38.5, 2.5) - rotation(1.0, 7.0, 0.0), 0.5);
+		float cylRad = 0.5;
+
+		it = vec2(cylIntersection(ro, rd, Cylinder[0], Cylinder[1], cylRad));
+		if(it.x > 0.0 && it.x < minIt.x) {
+			minIt = it;
+			vec3 itPos = ro + rd * it.x;
+			n = normalize(itPos - vec3(cylIntersection(ro, rd, Cylinder[0], Cylinder[1], cylRad)));
+			col = vec4(1.0, 0.3, 0.0, 0.1);
 		}
 	}
 
@@ -343,7 +426,7 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 				if (i == 74 || i == 75) col = vec4(0.8, 0.0, 0.0, -2.0);
 				else if (i > 5 && i < 12) col = vec4(1.0, 1.0, 1.0, -2.0);
 				else if (i == 16 || i == 17 || i == 32 || i == 47 || i == 78 || i == 79) col = vec4(0.06, 0.055, 0.045, 0.8);
-				else col = vec4(0.6, 0.55, 0.45, 0.5);
+				else col = vec4(0.6, 0.55, 0.45, 0.1);
 			}
 		}
 
@@ -375,32 +458,6 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 	}
 
 	if (colliderId == 2) {
-		vec4 fog = vec4(18.0 + random() * 5, 38.0 + random() * 5, -2.0 + random() * 5, 6.0 + random() * 7 - move(10, 60, 0));
-		it = sphIntersect(ro - fog.xyz, rd, fog.w);
-		if(it.x > 0.0 && it.x < minIt.x) {
-			minIt = it;
-			vec3 itPos = ro + rd * it.x;
-			n = normalize(itPos - fog.xyz);
-			col = vec4(0.65, 0.55, 0.45, 0.01);
-		}
-
-		vec3 boxN;
-
-		mat2x4 boxes[1];
-		boxes[0][0] = vec4(20.5, 40.5, 0.5, 1.0);
-		boxes[0][1] = vec4(1.0, 0.5, 0.0, -2.0);
-
-		for(int i = 0; i < boxes.length(); i++) {
-			it = boxIntersection(ro - boxes[i][0].xyz, rd, vec3(boxes[i][0].w), boxN);
-			if(it.x > 0.0 && it.x < minIt.x) {
-				minIt = it;
-				n = boxN;
-				col = boxes[i][1];
-			}
-		}
-	}
-
-	if (colliderId == 3) {
 		mat3x3 Triangles[28];
 
 		Triangles[0] = mat3x3( vec3(39.5, 4.5, -0.5), vec3(40.5, 4.5, -0.5), vec3(40.0, 5.0, -1.0) );
@@ -440,13 +497,13 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 				vec3 v0 = Triangles[i][0] - Triangles[i][1];
 				vec3 v1 = Triangles[i][2] - Triangles[i][1];
 				n = normalize(cross(v0, v1));
-				col = vec4(0.2, 0.3, 0.9, 1.0);
+				col = vec4(0.0, 0.3, 1.0, 1.0);
 			}
 		}
 	}
 
-	if (colliderId == 4) {
-		int faces = 3;
+	if (colliderId == 3) {
+		float faces = 3.0 + round(linearMotion(6.0, 20.0, 0.0));
 		vec3 pos = vec3(43.5, 3.0, 1.5);
 		float h = -2.5;
 		float ra = 2.0;
@@ -474,12 +531,12 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 				vec3 v0 = triangle[0] - triangle[1];
 				vec3 v1 = triangle[2] - triangle[1];
 				n = normalize(cross(v0, v1));
-				col = vec4(move(1.0, 10.0, 0.0), move(1.0, 10.0, 5.0), move(1.0, 10.0, 10.0), 0.1);
+				col = vec4(linearMotion(1.0, 10.0, 0.0), linearMotion(1.0, 10.0, 5.0), linearMotion(1.0, 10.0, 10.0), 0.5);
 			}
 		}
 	}
 
-	if (colliderId == 5) {
+	if (colliderId == 4) {
 		int faces = 6;
 		vec3 pos = vec3(44.0, 9.5, 1.3);
 		float h = -3.0;
@@ -525,63 +582,7 @@ float[9] colliderIntersection(vec3 ro, vec3 rd, int colliderId) {
 				vec3 v0 = triangle[0] - triangle[1];
 				vec3 v1 = triangle[2] - triangle[1];
 				n = normalize(cross(v0, v1));
-				col = vec4(0.4, 1.0, 0.2, 0.99);
-			}
-		}
-	}
-
-	if (colliderId == 6) {
-		mat2x3 Cylinders[1];
-		Cylinders[0][0] = vec3(37.0 + move(4.0, 7.0, 0.0), 3.0, 0.5);
-		Cylinders[0][1] = vec3(39.0 - move(4.0, 7.0, 0.0), 4.0, 0.5);
-
-		float cylRad[1];
-		cylRad[0] = 0.5;
-
-		for(int i = 0; i < Cylinders.length(); i++) {
-			it = vec2(cylIntersection(ro, rd, Cylinders[i][0], Cylinders[i][1], cylRad[i]));
-			if(it.x > 0.0 && it.x < minIt.x) {
-				minIt = it;
-				vec3 itPos = ro + rd * it.x;
-				n = normalize(itPos - vec3(cylIntersection(ro, rd, Cylinders[i][0], Cylinders[i][1], cylRad[i])));
-				col = vec4(1.0, 0.4, 0.0, 0.7);
-			}
-		}
-	}
-
-	if (colliderId == 7) {
-		vec3 boxN;
-
-		mat2x4 boxes[2];
-		boxes[0][0] = vec4(47.0, 0.0 + move(8.0, 10.0, 0.0), -3.001 + move(2.0, 5.0, 0.0), 1.0);
-		boxes[1][0] = vec4(47.0, 4.0 - move(8.0, 10.0, 0.0), -5.001 + move(2.0, 5.0, 0.0), 1.0);
-
-		boxes[0][1] = vec4(0.1, 1.0, 0.1, 1.0);
-		boxes[1][1] = vec4(0.1, 0.1, 1.0, 1.0);
-
-		for(int i = 0; i < boxes.length(); i++) {
-			it = boxIntersection(ro - boxes[i][0].xyz, rd, vec3(boxes[i][0].w), boxN);
-			if(it.x > 0.0 && it.x < minIt.x) {
-				minIt = it;
-				n = boxN;
-				col = boxes[i][1];
-			}
-		}
-	}
-
-	if (colliderId == 8) {
-		mat2x4 spheres[1];
-		spheres[0][0] = vec4(41.5, 7.5, move(0.8, 10.0, 0.0), 1.0 - move(0.8, 10.0, 0.0));
-
-		spheres[0][1] = vec4(1.0, 1.0, 1.0, 0.5);
-
-		for(int i = 0; i < spheres.length(); i++) {
-			it = sphIntersect(ro - spheres[i][0].xyz, rd, spheres[i][0].w);
-			if(it.x > 0.0 && it.x < minIt.x) {
-				minIt = it;
-				vec3 itPos = ro + rd * it.x;
-				n = normalize(itPos - spheres[i][0].xyz);
-				col = spheres[i][1];
+				col = vec4(0.3, 1.0, 0.0, 1.0);
 			}
 		}
 	}
@@ -609,16 +610,12 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 	vec2 it;
 	vec3 n;
 
-	vec4 colliders[9];
-	colliders[0] = vec4(42.0, 5.0, 0.0, 10.0);
-	colliders[1] = vec4(-2.0, 0.0, 0.0, 11.0);
-	colliders[2] = vec4(20.5, 40.5, 0.0, 15.0);
-	colliders[3] = vec4(40.0, 5.0, 0.0, 1.0);
-	colliders[4] = vec4(43.5, 3.0, 0.6, 1.8);
-	colliders[5] = vec4(44.0, 9.5, 0.0, 2.0);
-	colliders[6] = vec4(38.0, 3.5, 0.5, 1.5);
-	colliders[7] = vec4(47.0, 2.0, -4.0, 4.0);
-	colliders[8] = vec4(41.5, 7.5, 0.0, 1.1);
+	vec4 colliders[5];
+	colliders[0] = vec4(42.0, 5.0, 0.0, 11.0); // Simple geometric bodies
+	colliders[1] = vec4(-2.0, 0.0, 0.0, 11.0); // 3D car model
+	colliders[2] = vec4(40.0, 5.0, 0.0, 1.0); // Dodecahedron
+	colliders[3] = vec4(43.5, 3.0, 0.6, 1.8); // Tetrahedron
+	colliders[4] = vec4(44.0, 9.5, 0.0, 2.0); // Prism
 
 	for(int i = 0; i < colliders.length(); i++) {
 		if (has_sphIntersection(ro, rd, colliders[i])) {
@@ -663,14 +660,11 @@ vec4 castRay(inout vec3 ro, inout vec3 rd) {
 
 vec3 traceRay(vec3 ro, vec3 rd) {
 	vec3 col = vec3(1.0);
-	float rp = 1.0;
 	for (int i = 0; i < MAX_REF; i++)
 	{
 		vec4 refCol = castRay(ro, rd);
 		col *= refCol.rgb;
 		if(refCol.a == -2.0) return col;
-		rp *= abs(refCol.a);
-		if(rp < MIN_RP) return vec3(0.0);
 	}
 	return vec3(0.0);
 }
@@ -696,7 +690,5 @@ void main() {
 	float white = 20.0;
 	col *= white * 16.0;
 	col = (col * (1.0 + col / white / white)) / (1.0 + col);
-	vec3 sampleCol = texture(u_sample, gl_TexCoord[0].xy).rgb;
-	col = mix(sampleCol, col, u_sample_part);
 	gl_FragColor = vec4(col, 1.0);
 }

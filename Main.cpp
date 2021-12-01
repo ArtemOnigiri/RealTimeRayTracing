@@ -21,11 +21,7 @@ int main()
 	int frames = 0, s = 0, fps = 0, minFps;
 	sf::Vector2i delta = sf::Vector2i(1, 1);
 
-	sf::ContextSettings settings;
-	settings.depthBits = 24;
-	settings.stencilBits = 8;
-	settings.antialiasingLevel = 16;
-	sf::RenderWindow window(sf::VideoMode(w, h), "Ray tracing", sf::Style::Titlebar | sf::Style::Close, settings);
+	sf::RenderWindow window(sf::VideoMode(w, h), "Ray tracing", sf::Style::Titlebar | sf::Style::Close);
 	window.setFramerateLimit(60);
 	window.setMouseCursorVisible(false);
 
@@ -37,7 +33,6 @@ int main()
 	firstTextureSpriteFlipped.setPosition(0, h);
 
 	sf::RenderTexture outputTexture;
-	outputTexture.setSmooth(true);
 	outputTexture.create(w, h);
 	sf::Sprite outputTextureSprite = sf::Sprite(outputTexture.getTexture());
 	sf::Sprite outputTextureSpriteFlipped = sf::Sprite(firstTexture.getTexture());
@@ -47,6 +42,20 @@ int main()
 	sf::Shader shader;
 	shader.loadFromFile("Shader.frag", sf::Shader::Fragment);
 	shader.setUniform("u_resolution", sf::Vector2f(w, h));
+
+	sf::Texture texture;
+	texture.loadFromFile("textures/texture.jpg");
+	sf::Texture brickTexture;
+	brickTexture.loadFromFile("textures/brick.jpg");
+	sf::Texture woodTexture;
+	woodTexture.loadFromFile("textures/wood.jpg");
+	sf::Texture marbleTexture;
+	marbleTexture.loadFromFile("textures/marble.jpg");
+
+	shader.setUniform("u_texture", texture);
+	shader.setUniform("u_brick_texture", brickTexture);
+	shader.setUniform("u_wood_texture", woodTexture);
+	shader.setUniform("u_marble_texture", marbleTexture);
 
 	std::random_device rd;
 	std::mt19937 e2(rd());
@@ -144,10 +153,8 @@ int main()
 			shader.setUniform("u_samples", samples > 0 ? samples : 1);
 			shader.setUniform("u_mouse", sf::Vector2f(mx, my));
 			shader.setUniform("u_time", clock.getElapsedTime().asSeconds());
-			shader.setUniform("u_sample_part", 1.0f);
 			shader.setUniform("u_seed1", sf::Vector2f((float)dist(e2), (float)dist(e2)) * 999.0f);
 			shader.setUniform("u_seed2", sf::Vector2f((float)dist(e2), (float)dist(e2)) * 999.0f);
-			shader.setUniform("u_sample", firstTexture.getTexture());
 			outputTexture.draw(firstTextureSpriteFlipped, &shader);
 			window.draw(outputTextureSprite);
 			window.display();
@@ -156,7 +163,7 @@ int main()
 				s = clock.getElapsedTime().asSeconds();
 				fps = frames;
 				frames = 0;
-				minFps = 10 + lightPos.y * -5;
+				minFps = 15 + lightPos.y * -5;
 				if (fps > minFps + 3) {
 					samples += delta.x;
 					delta = sf::Vector2i(delta.x + 1, 1);
